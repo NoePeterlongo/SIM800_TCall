@@ -7,14 +7,10 @@
     Adapted from https://github.com/vittorioexp/Sim800L-Arduino-Library-revised
 */
 
-class Sim800 {
+class Sim800
+{
 public:
-    Sim800(HardwareSerial &serial,
-           int rxPin,
-           int txPin,
-           int resetPin,
-           int powerPin,
-           int pwrKey);
+    Sim800(HardwareSerial &serial, int rxPin, int txPin, int resetPin, int powerPin, int pwrKey);
     void setDebugSerial(HardwareSerial *debugSerial);
     void begin();
     bool reset(String pinCode = "");
@@ -29,16 +25,18 @@ public:
     bool sendSms(String number, String text);
     bool prepareForSmsReceive();
 
-    /*s
+    /*
         If several sms are received at the same time,
         This function gets only the first
         The others will be lost.
     */
     uint8_t checkForSMS();
 
-    String readSms(uint8_t index);
-    String getNumberSms(uint8_t index);
+    bool getSms(uint8_t index, String *number, String *text);
     bool delAllSms();
+
+    bool enableSleep();
+    bool disableSleep();
 
 private:
     HardwareSerial &_serial;

@@ -1,11 +1,8 @@
 #include "Sim800_TCall.h"
 
-Sim800::Sim800(HardwareSerial &serial,
-               int rxPin,
-               int txPin,
-               int resetPin,
-               int powerPin,
-               int pwrKey)
+#include <driver/uart.h>
+
+Sim800::Sim800(HardwareSerial &serial, int rxPin, int txPin, int resetPin, int powerPin, int pwrKey)
     : _serial(serial),
       _rxPin(rxPin),
       _txPin(txPin),
@@ -110,18 +107,13 @@ bool Sim800::debugATLoop() {
     if (!_debugSerial)
         return false;
 
-    _debugSerial->println(
-        F("***********************************************************"));
+    _debugSerial->println(F("***********************************************************"));
     _debugSerial->println(F(" You can now send AT commands"));
-    _debugSerial->println(
-        F(" Enter \"AT\" (without quotes), and you should see \"OK\""));
-    _debugSerial->println(
-        F(" If it doesn't work, select \"Both NL & CR\" in Serial Monitor"));
-    _debugSerial->println(
-        F(" DISCLAIMER: Entering AT commands without knowing what they do"));
+    _debugSerial->println(F(" Enter \"AT\" (without quotes), and you should see \"OK\""));
+    _debugSerial->println(F(" If it doesn't work, select \"Both NL & CR\" in Serial Monitor"));
+    _debugSerial->println(F(" DISCLAIMER: Entering AT commands without knowing what they do"));
     _debugSerial->println(F(" can have undesired consiquences..."));
-    _debugSerial->println(
-        F("***********************************************************\n"));
+    _debugSerial->println(F("***********************************************************\n"));
 
     while (true) {
         while (_serial.available()) {
@@ -202,14 +194,14 @@ bool Sim800::prepareForSmsReceive() {
     _printSerial(F("AT+CMGF=1\r"));
     String buffer = _readSerial();
     if ((buffer.indexOf("OK")) == -1) {
-        return true;
+        return false;
     }
     _printSerial(F("AT+CNMI=2,1,0,0,0\r"));
     buffer = _readSerial();
     if ((buffer.indexOf("OK")) == -1) {
-        return true;
+        return false;
     }
-    return false;
+    return true;
 }
 
 uint8_t Sim800::checkForSMS() {
@@ -226,11 +218,9 @@ uint8_t Sim800::checkForSMS() {
     return buffer.substring(buffer.indexOf(',') + 1).toInt();
 }
 
-String Sim800::readSms(uint8_t index) {
-    // Can take up to 5 seconds
-
+bool Sim800::getSms(uint8_t index, String *number, String *text) {
     if ((_readSerial(1000).indexOf("ER")) != -1) {
-        return "";
+        return false;
     }
 
     _printSerial(F("AT+CMGR="));
@@ -239,37 +229,26 @@ String Sim800::readSms(uint8_t index) {
     String buffer = _readSerial();
     int indexCMGR = buffer.indexOf("CMGR");
     if (indexCMGR == -1) {
-        return "";
+        return false;
     }
 
-    int start = buffer.indexOf("\n", indexCMGR) + 1;
-    int end = buffer.lastIndexOf("\nOK");
-    if (start == -1 || end == -1) {
-        return "";
-    }
-    buffer = buffer.substring(start, end);
-    buffer.trim();
-    return buffer;
-}
-
-String Sim800::getNumberSms(uint8_t index) {
-    if ((_readSerial(1000).indexOf("ER")) != -1) {
-        return "";
-    }
-    _printSerial(F("AT+CMGR="));
-    _printSerial(index);
-    _printSerial("\r");
-    String buffer = _readSerial();
-    int indexCMGR = buffer.indexOf("CMGR");
-    if (indexCMGR == -1) {
-        return "";
-    }
+    // get number
     int start = buffer.indexOf("+", indexCMGR);
     int end = buffer.indexOf("\"", start);
     if (start == -1 || end == -1) {
-        return "";
+        return false;
     }
-    return buffer.substring(start, end);
+    *number = buffer.substring(start, end);
+
+    // get message
+    start = buffer.indexOf("\n", indexCMGR) + 1;
+    end = buffer.lastIndexOf("\nOK");
+    if (start == -1 || end == -1) {
+        return false;
+    }
+    *text = buffer.substring(start, end);
+    text->trim();
+    return true;
 }
 
 bool Sim800::delAllSms() {
@@ -284,4 +263,30 @@ bool Sim800::delAllSms() {
         return false;
     // Error found, return 0
     // Error NOT found, return 1
+}
+
+bool Sim800::enableSleep() {
+    _printSerial(F("AT+CSCLK=2\r"));
+    String buffer = _readSerial();
+    if ((buffer.indexOf("OK")) == -1) {
+        return false;
+    }
+    return true;
+}
+
+bool Sim800::disableSleep() {
+    String buffer = _readSerial(10);
+    _printSerial(F("AT\r")); // The first has no response
+    delay(100);
+    _printSerial(F("AT\r"));
+    buffer = _readSerial();
+    if ((buffer.indexOf("OK")) == -1) {
+        return false;
+    }
+    _printSerial(F("AT+CSCLK=0\r"));
+    buffer = _readSerial();
+    if ((buffer.indexOf("OK")) == -1) {
+        return false;
+    }
+    return true;
 }
